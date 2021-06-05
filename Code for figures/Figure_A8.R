@@ -60,8 +60,7 @@ Pred.DEP <- function (product.pars.DEP){
   which_sig.DEP          <- grep("sig", DEP.names)
  
   ## Get out of log domain
-  pars.DEP    <- lapply(pars.DEP  [-which_sig.DEP],exp) # pars.mouse is the entire parameter set; pars.mouse [-which_sig] means to keep parameters with "sig" only, and then do exp transformation, then reassign to pars.mouse
-
+  pars.DEP    <- lapply(pars.DEP  [-which_sig.DEP],exp) 
   ## Repeat dose exposure scenario: 
    
   BW                = 82.3                                ## human body weight
@@ -110,8 +109,7 @@ Pred.DEHP <- function (product.pars.DEHP){
   which_sig.DEHP          <- grep("sig", DEHP.names)
 
   ## Get out of log domain
-  pars.DEHP    <- lapply(pars.DEHP  [-which_sig.DEHP],exp) # pars.mouse is the entire parameter set; pars.mouse [-which_sig] means to keep parameters with "sig" only, and then do exp transformation, then reassign to pars.mouse
-  
+  pars.DEHP    <- lapply(pars.DEHP  [-which_sig.DEHP],exp) 
   ## Repeat dose exposure scenario: 
   
   BW                = 82.3                                ## human body weight
