@@ -3,7 +3,7 @@ library(magrittr)   # The pipe, %>% , comes from the magrittr package by Stefan 
 library(reshape2)   # melt function to reshape the table
 library(tidyverse)  # Needed for the pipe %>% operator
 
-## Loading human, rat, mouse, monkey MCMC data, from line 557 of the mrgModelfitting code
+## Loading human  mrgModelfitting code
 Human.MCMC  <- readRDS(file = "C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DEP/result/Human.MCMC.rds")
 
 
