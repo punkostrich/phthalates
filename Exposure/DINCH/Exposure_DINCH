@@ -1,0 +1,479 @@
+
+library(truncnorm) 
+library(ggridges)     # Used to create Figure
+library(ggplot2)   # ggplot is the basic package for creating plots.
+#install.packages("tkrplot")
+library(tkrplot)
+#install.packages("rriskDistributions")
+library(rriskDistributions)
+library(EnvStats)
+library(httk)
+library(mc2d)
+library(fitdistrplus)
+#install.packages('nortest')
+library(nortest)
+library(BSDA)
+
+rm(list = ls())
+
+M <- 100    #M sets 
+N <- 10000   #N exposure
+
+set.seed(123)
+############################################# outer loop DINCH ##############################################
+## production volume #(Sc, shared among members of the entire cohort)
+SD_volume <- 0.3*  6.1 * 1E6    # 30% CV
+volume.sample <-rtruncnorm (n=M, a = qnorm(0.05, mean =  6.1 * 1E6   , sd = SD_volume  ), 
+                            b = qnorm(0.95, mean = 6.1 * 1E6 , sd = SD_volume ), 
+                            mean = 6.1 * 1E6 , sd = SD_volume )             # kg 
+quantile(volume.sample, c(0,0.05,.5, 0.75, 0.9, 0.95,1)) 
+
+##### percentage in plastic (Sc, shared among members of the entire cohort)
+SD_perc <- 0.3*0.5
+perc.sample <-rtruncnorm (n=M, a = 0.01, 
+                          b = 0.8, 
+                          mean = 0.3, sd =  SD_perc) 
+quantile(perc.sample, c(0, 0.05,.5, 0.75, 0.9, 0.95,1))      #(Sc, shared among members of the entire cohort)
+
+
+life_mean.sample <- runif(n=M, min = 5, max = 30)     # plastic service life, (ScUc)
+life_CV.sample <-  runif(n=M, min = 0.3, max = 1)     # plastic service life, (ScUc)
+
+dens.sample <- runif(n=M, min = 1.1, max = 3)    #kg/m2 (Sc, shared among members of the entire cohort)
+dens_DINCH   <- 0.954 * 1E3 #kg/m3
+
+
+## particle-air partition coefficient normal  #(Sc, shared among members of the entire cohort)
+SD_kp <- 0.09*0.65
+Kp.sample <-rtruncnorm (n=M, a = qnorm(0.05, mean = 0.09, sd = SD_kp), 
+                 b = qnorm(0.95, mean = 0.09, sd = SD_kp), 
+                 mean = 0.09, sd = SD_kp)              ## m3/ug
+quantile(Kp.sample, c(0.05,.5, 0.75, 0.9, 0.95)) 
+
+
+## vapor from product #(Sc, shared among members of the entire cohort)
+#SD_y0  <- 0.3 * 1.6  # 30% CV
+#y0.sample  <- rtruncnorm (n=M, a = 0.5, 
+#                          b = qnorm(0.95, mean = 1.6 , sd = SD_y0), 
+#                          mean = 1.6, sd = SD_y0)             ## ug/m3 
+
+##kpf of DINCH  #(ScUc, highly uncertain)
+kpf_mean.sample <- runif(n=M,  min = 332030, max = 1827200)   #40-50% etoh content 
+kpf_CV.sample <-  runif(n=M, min = 0.3, max = 1)     #  (ScUc)
+
+#dust oral # unshared ScUc
+IngR_mean.sample  <- runif(n=N, min = 30, max = 70)  ## mg/d
+IngR_CV.sample   <-  runif(n=M, min = 0.3, max = 1)     # plastic service life, (ScUc)
+
+
+occurance.sample <- runif(n=M, min = 0.3, max = 0.8) 
+
+
+Sc.sample <- cbind(volume.sample, perc.sample,life_mean.sample, life_CV.sample , occurance.sample ,
+                   dens.sample, Kp.sample,  kpf_mean.sample, kpf_CV.sample , 
+                   IngR_mean.sample, IngR_CV.sample)
+
+
+
+############################################# inner loop ##############################################
+df       = matrix(0, N, 1)
+df.IE    = matrix(0, N, 1)
+df.OE    = matrix(0, N, 1)
+df.SE    = matrix(0, N, 1)
+
+dim(df)
+######################################## creat visual population ######################################
+for (i in 1:M){
+  
+  fixed = Sc.sample[i,]
+  #print(fixed)
+  
+  volume = fixed['volume.sample']
+  perc   = fixed['perc.sample']
+  life_mean = fixed['life_mean.sample'] 
+  life_CV   = fixed['life_CV.sample'] 
+  dens = fixed['dens.sample'] 
+  Kp   = fixed['Kp.sample']
+  y0  = fixed['y0.sample'] 
+  kpf_mean = fixed['kpf_mean.sample']
+  kpf_CV = fixed['kpf_CV.sample']
+  #Cp  = fixed['Cp.sample']
+  occurance = fixed['occurance.sample']
+  IngR_mean = fixed['IngR_mean.sample']
+  IngR_CV = fixed['IngR_CV.sample']
+  
+  set.seed(1)
+  # httkpop_generate(method='direct resampling', nsamp=100)
+  #Generate a population using the virtual-individuals method,
+  #including 80 females and 20 males,
+  #including only ages 20-65,
+  #including non-obese individuals
+  population <- httkpop_generate(method = 'virtual individuals',nsamp = N,
+                                 agelim_years=c(20,65))
+  
+  BSA <- as.numeric((population$weight * population$height)^0.5/60)   #skin surface area # unshared (Us)
+  BW <- as.numeric(population$weight)  # Body weight  # unshared (Us)
+  #hist(as.numeric(unlist(BSA)))
+  #hist(as.numeric(unlist(population$weight)))
+  #mean(as.numeric(unlist(population$weight)))
+  #mean(as.numeric(unlist(BSA)))
+  ############################################## 1  ##############################################
+  ################################ Exposure scenario #Inhalation #################################
+  ## parameters
+  life <- rtruncnorm (n=N, a = 1, 
+                      b = 70, 
+                      mean = life_mean, sd =  life_CV * life_mean)  # ScUc
+  
+  kpf <- rtruncnorm (n=N, a = 1E2, 
+                     b = qnorm(0.95, mean = kpf_mean, sd =  kpf_CV * kpf_mean), 
+                     mean = kpf_mean, sd =  kpf_CV * kpf_mean)  # ScUc
+  
+  IngR <- rtruncnorm (n=N, a = 0.01, 
+                      b = 1000, 
+                      mean = IngR_mean, sd =  IngR_CV * IngR_mean)  # ScUc
+  
+  ## concentration in food contacting material Cp (%) log-normal # # (Sc, shared among members of the entire cohort)
+  #dCp <- c(0.1, 0.5)    #3%
+  #PercdCp <- c(0.5, 0.90)   #50%
+  #c <- get.lnorm.par(p= PercdCp,q=dCp)
+  Cp_ori <- rlnormTrunc(n=M, meanlog = -2.302579 , sdlog = 1.255685, max = 0.7) ## g/g
+  #max(Cp_ori)
+  #quantile(Cp_ori, c(.05, .1,.25,.5, 0.75, 0.9, 0.95))  
+  Cp  <- Cp_ori * 1E6   ## ug/g
+  #quantile(Cp.sample, c(.05, .1,.25,.5, 0.75, 0.9, 0.95))  
+  
+  y0  = min(1.6, 1.6 * perc / dens_DINCH / (perc/dens_DINCH + (1-perc)/1.5E3) * 3.7) ## ug/m3,
+  
+  ######## household size ######## # unshared (Us)
+  SD_household <- 2.65*1 
+  
+  household<-rtruncnorm (n=N, a = 1, 
+                         b = qnorm(0.95, mean = 2.65, sd =  SD_household), 
+                         mean = 2.65, sd =  SD_household)  # unshared (Us)
+  #quantile(household, c(0.05,.5, 0.75, 0.9, 0.95,1)) 
+  
+  
+  ## convective mass transfer coefficient log-normal # unshared (Us)
+  #dh <- c(3.6, 7.2)
+  #Percdh <- c(0.5, 0.95)
+  #b <- get.lnorm.par(p= Percdh,q=dh)
+  h <- rlnorm(n=N, meanlog = 1.2809338   , sdlog = 0.4214028) # # unshared (Us)
+  #quantile(h, c(.5, 0.75, 0.9, 0.95,1))  # check ## m/h
+  
+  ## indoor ventilation rate Q normal  # unshared (Us)
+  SD_Q <- (88 - 221) / qnorm(0.1)
+  Q <-rtruncnorm (n=N, a = qnorm(0.05, mean = 221, sd = SD_Q), 
+                  b = qnorm(0.95, mean = 221, sd = SD_Q), 
+                  mean = 221, sd = SD_Q)              ## m3/h  # unshared (Us)
+  
+  ## inhalation rate normal  # unshared (Us)
+  SD_InhR <- (21 - 15) / qnorm(0.95)
+  InhR <-rtruncnorm (n=N, a = qnorm(0.05, mean = 15, sd = SD_InhR ), 
+                     b = qnorm(0.95, mean = 15, sd = SD_InhR ), 
+                     mean = 15, sd = SD_InhR )              ## m3/day  # unshared (Us)
+  
+  ## tsp log-normal  # unshared (Us)
+  #dTSP <- c(20, 100)
+  #PercdTSP <- c(0.5, 0.95)
+  #c <- get.lnorm.par(p= PercdTSP,q=dTSP)
+  TSP <-  rlnormTrunc(n=N, meanlog = 2.9957515 , sdlog = 0.9785187, max = 1000) ## ug/m3
+  #quantile(TSP, c(.5, 0.75, 0.9, 0.95,1))  
+  
+  ## exposure duration percentage assume 90% indoor  # unshared (Us)
+  SD_ED <- 0.3 * 0.9
+  ED <-rtruncnorm (n=N, a = 0.4, 
+                   b = 1, 
+                   mean = 0.9, sd = SD_ED )   # unshared (Us)
+  #quantile(ED, c(.5, 0.75, 0.9, 0.95,1))
+  #hist(ED)
+  
+  
+  ## Calculate DINCH conc in air 
+  
+  A_p <- volume * life / perc / dens / 328 /1000000
+  A <- volume * life / perc / dens / 328 /1000000 * household
+  #quantile(A, c(0.05,.5, 0.75, 0.9, 0.95)) 
+  #quantile(A_p, c(0.05,.5, 0.75, 0.9, 0.95)) 
+  
+  Cair <- h * y0 * A/(h * A + (1 + Kp * TSP) * Q)    ## ug/m3
+  ## inhalation exposure
+  IE <- (Cair * InhR * ED + Cair * Kp * TSP * InhR * ED)/BW   ## ug/day/kg
+  # print(min(IE))
+  
+  
+  
+  ######################################## 2 ####################################
+  ################################ Exposure scenario #Oral ######################
+  #diet oral
+  
+  
+  
+  ## meat consumption (g/kg-day) normal # unshared (Us)
+  SD_meat <- (4.1 - 1.8) / qnorm(0.95)
+  meat <-rtruncnorm (n=N, a = qnorm(0.05, mean = 1.8, sd = SD_meat ), 
+                     b = qnorm(0.95, mean = 4.1, sd = SD_meat ), 
+                     mean = 1.8, sd = SD_meat )              ## g/kg-day
+  
+  ## cheese consmption normal # unshared (Us)
+  SD_dairy <- 16 * 1
+  dairy <- rtruncnorm (n=N, a = 1, 
+                       b = qnorm(0.95, mean = 16 , sd = SD_dairy ), 
+                       mean = 16 , sd = SD_dairy )              ## g/d
+  
+  ## fat consumption normal # unshared (Us)
+  SD_fat <- (2.3 - 1.2) / qnorm(0.95)
+  fat <- rtruncnorm (n=N, a = 1.2, 
+                     b = qnorm(0.95, mean = 1.2 , sd = SD_fat ), 
+                     mean = 1.2 , sd = SD_fat )              ## g/kg-d
+  
+  Diet <- Cp/kpf * (meat*BW + dairy + fat*BW) *occurance      ##ug/day
+  #quantile(Diet/BW, c(.5, 0.75, 0.9, 0.95, 0.975))  # check
+  
+  
+  #dust oral # unshared (Us)
+  IngR  <- runif(n=N, min = 30, max = 70)  ## mg/d
+  
+  Kdust <- Kp/8.32            ## m3/ug #(Sc, shared among members of the entire cohort)
+  #quantile(Kdust, c(0.05,.5, 0.75, 0.9, 0.95, 0.975))  # check
+  
+  OE <- (Cair * Kdust * IngR)/BW  + Diet/BW ## ug/day/kg
+  #quantile((Cair * Kdust * IngR)/BW, c(.5, 0.75, 0.9, 0.95)) 
+  #quantile(OE, c(.5, 0.75, 0.9, 0.95))
+  
+  
+  ############################## 3 ###################################
+  ##################### Exposure scenario #Dermal ####################
+  ## dermal absorption coefficient # unshared (Us)
+  SD_kpg <- 4.27 * 5
+  kpg <- rtruncnorm (n=N, a = 0.1e-03, 
+                     b = qnorm(0.95, mean = 4.27, sd = SD_kpg ), 
+                     mean = 4.27 , sd = SD_kpg )              ## m/d
+  
+  
+  ## fraction of skin exposed  # unshared (Us)
+  SD_Fr <- 0.24 * 1
+  Fr  <- rtruncnorm (n=N, a = 0.11, 
+                     b = 1 , sd = SD_Fr ) ## - # unshared (Us)
+  #quantile(Fr, c(0.05,.5, 0.75, 0.9, 0.95))
+  
+  SE <- (Cair * kpg * BSA * Fr * ED)/BW  ## ug/day/kg
+  
+  
+  
+  all = IE + OE + SE
+  
+  df       = cbind (df, all)
+  df.IE    = cbind (df.IE, IE)
+  df.OE    = cbind (df.OE, OE)
+  df.SE    = cbind (df.SE, SE)
+  
+  
+  cat("loop= ", i , "\n")
+  
+}
+
+
+## Summary results
+## Inhalation
+df.inhal<-as.data.frame(df.IE)
+df.inhal = subset(df.inhal, select = -c(V1))
+df.inhal$DINCH <- c("Inhalation") 
+#names(df.inhal)=c("Value","DINCH")
+
+## Oral
+df.oral<-as.data.frame(df.OE)
+df.oral = subset(df.oral, select = -c(V1) )
+df.oral$DINCH <- c("Oral") 
+#names(df.oral)=c("Value","DINCH")
+
+## Dermal
+df.dermal<-as.data.frame(df.SE)
+df.dermal = subset(df.dermal, select = -c(V1) )
+df.dermal$DINCH <- c("Dermal") 
+#names(df.dermal)=c("Value","DINCH")
+
+## all
+df.all <-as.data.frame(df)
+df.all = as.data.frame(subset(df.all, select = -c(V1) ))
+
+
+# get measured values from literature
+x.median <- c(0.23)#, 0.5, 0.23)
+x.95 <- c(2)#, 2.8, 4)
+survey.median <- quantile(x.median, c(.95))
+survey.95 <- quantile(x.95, c(.95))
+
+SD_survey <- (survey.95 - survey.median) / qnorm(0.95)
+survey <- rlnormTrunc(n=N, meanlog = survey.median, sdlog =  SD_survey, min = 1e-10, max = 50000)
+
+
+lst.ks <- lapply(1:ncol(df.all), function(i)
+  #ks.test(log(df.all[, i]), log(survey) )$statistic)
+  JSD(rbind(df.all[, i], survey), unit = 'log2'))
+lst.ks <- as.data.frame(lst.ks)
+
+#descdist(df.all[, 3], discrete = FALSE)
+#fit.norm <- fitdist(log(df.all[, 2]), "norm")
+#fit.norm2 <- fitdist(log(survey), "norm")
+#plot(fit.norm)
+#plot(fit.norm2)
+#fit.norm$aic
+#fit.norm2$aic
+##ad.test(df.all[, 2])
+#hist(log(df.all[, 2]),breaks = 50)
+
+#a = ks.test(log(df.all[, 3]), log(survey) )$statistic
+
+#a = z.test(log(df.all[, 2]),sigma.x=1, log(survey), sigma.y=1,mu = 0, conf.level=0.60)
+
+#lst.ks <- lapply(1:ncol(df.all), function(i)
+ # z.test(log(df.all[, i]), sigma.x=1, log(survey), sigma.y=1, conf.level=0.90)$p.value)
+#lst.ks <- as.data.frame(lst.ks)
+
+# get residues
+df.2.3 <- as.data.frame(lst.ks)
+
+# order by residues, for quality check only
+y = df.2.3[,order(df.2.3[nrow(df.2.3),], decreasing = FALSE)]
+y
+
+df.2.3$DINCH <- c("quantile")
+df.all$DINCH <- c("all") 
+
+library(data.table) #data.table_1.9.5
+df.2 <- rbindlist(list(df.inhal, df.oral, df.dermal, df.all, df.2.3),use.names=FALSE )
+df.2R <- as.data.frame(df.2)
+df.2A = as.data.frame(subset(df.2R, select = -c(DINCH) ))
+
+df.ks <- df.2A[,order(df.2A[(nrow(df.2A)),], decreasing = FALSE)]       # order column based on p value of kstest
+# select first 5 columns
+df.f <- df.ks[, 1]
+
+df.f2 <- cbind.data.frame(df.f, df.2R$DINCH)
+names(df.f2)[length(names(df.f2))]<-"DINCH" 
+
+# extrace subset data frame for inhal, dermal,  oral, all sepearately
+df.inhal <- df.f2[df.f2$DINCH == 'Inhalation', ]
+df.dermal <- df.f2[df.f2$DINCH == 'Dermal', ]
+df.oral <- df.f2[df.f2$DINCH == 'Oral', ]
+df.all <- df.f2[df.f2$DINCH == 'all', ]
+
+# mix all data within each category
+df.inhal.A = as.data.frame(subset(df.inhal, select = -c(DINCH) ))
+df.inhal <- data.frame(x=unlist(df.inhal.A))
+df.inhal$DINCH <- c("Inhalation") 
+names(df.inhal)=c("Value","DINCH")
+
+df.dermal.A = as.data.frame(subset(df.dermal, select = -c(DINCH) ))
+df.dermal <- data.frame(x=unlist(df.dermal.A))
+df.dermal$DINCH <- c("Dermal") 
+names(df.dermal)=c("Value","DINCH")
+
+
+df.oral.A = as.data.frame(subset(df.oral, select = -c(DINCH) ))
+df.oral <- data.frame(x=unlist(df.oral.A))
+df.oral$DINCH <- c("Oral") 
+names(df.oral)=c("Value","DINCH")
+
+
+df.all.A = as.data.frame(subset(df.all, select = -c(DINCH) ))
+df.all <- data.frame(x=unlist(df.all.A))
+df.all$DINCH <- c("all") 
+names(df.all)=c("Value","DINCH")
+
+
+
+
+
+ ############################## 3 ###################################
+ 
+
+ ################## summary #####################
+ df <- rbind.data.frame (df.inhal,df.oral,df.dermal)
+ df$log.value <- log10(df$Value)
+ df$ggjoy = c("A")
+ ######### end of exposure estimates ############
+
+##################################################################
+########## Figure: Exposure estimate distributions  ##############
+##################################################################
+
+windowsFonts(Times=windowsFont("Times New Roman")) # Abbreviate the font Times New Roman as Times
+
+df$ggjoy = c("A") # Create a new column ggjoy in df table. Without this, the plot p1 will have four layers for four species overlapped in each panel, which does not look good.
+# With this, y axis is A for all species in one layer in one panel.
+
+p1 = 
+  ggplot (df, aes(x = as.numeric(log.value), y = as.factor(ggjoy),fill = DINCH)) + # fill, fill one color for each species
+  geom_density_ridges (scale = 28, size = 1, rel_min_height = 0.001, alpha = 0.6) + # over size of the entire ggridge plot
+  scale_y_discrete(expand = c(0.01, 0)) +
+  scale_x_continuous(expand = c(0.01, 0), name = expression(paste("Log [Daily Uptake] (", mu,"g/kg/d)"))) +
+  scale_fill_manual(values = c("grey", "#2E9FDF","#7CAE00")) + 
+  scale_colour_manual(values = c("grey", "#2E9FDF","#7CAE00"))
+
+p1=
+  p1 + theme_ridges()+ # change the theme of the plot p1 (incorporate p1 into the theme)
+  theme (
+    plot.background         = element_blank(),
+    text                    = element_text (family = "Times",face="bold",size = 24),
+    #panel.border            = element_rect (colour = "black", fill=NA, size=2),
+    #panel.background        = element_blank(),
+    panel.background        = element_rect (fill   = "#f7f7f7"),
+    #panel.grid.major.y      = element_line (size   = 0.5, colour = "grey"),
+    #panel.grid.minor.y      = element_blank(),
+    panel.grid.major.x      = element_blank(), 
+    #panel.grid.minor.x      = element_blank(), 
+    axis.text               = element_text (size   = 24, colour = "black",face="bold"),  
+    axis.title              = element_text ( size   = 24, colour = "black", face = "bold"),   # label of axes
+    axis.ticks.x            = element_line (size   = 1, colour = "black"), 
+    axis.ticks.y            = element_blank(), 
+    axis.text.y             = element_blank(),
+    strip.text              = element_text (size   = 24),
+    axis.title.x            = element_text (hjust = 0.5, face="bold", size = 24),
+    legend.title            = element_text (size   = 24, face="bold"),
+    legend.justification    =  c("left", "top"),,
+    legend.position         = c(.05, .95),
+    legend.text             = element_text (size = 24,face="bold")) + 
+    labs (x = "", y = "") 
+
+p1
+
+ggsave("Exposure_updated2a.tiff",scale = 1,
+       plot = p1,
+       path = "C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DINCH/result",
+       width = 25, height = 20, units = "cm",dpi=320)
+
+
+
+###### get mean & percentile ##########
+## Inhalation ##
+IE = df.inhal$Value
+mean_inhal = mean(df.inhal$Value)
+quantile(df.inhal$Value, c(.05,0.5, .95))
+
+## Oral ###
+OE = df.oral$Value
+mean_oral = mean(df.oral$Value)
+quantile(df.oral$Value, c(.05,0.5, .95))
+
+## Dermal ##
+SE = df.dermal$Value
+mean_dermal = mean(df.dermal$Value)
+quantile(df.dermal$Value, c(.05,0.5, .95))
+
+## Overall ##
+df.all <- df.all$Value
+quantile(df.all, c(0.01,.05,0.25, 0.5, 0.75,.95,0.99,1))
+
+saveRDS(IE,file ='C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DINCH/result/IE.rds')
+saveRDS(OE,file='C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DINCH/result/OE.rds')
+saveRDS(SE,file='C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DINCH/result/SE.rds')
+saveRDS(BW,file='C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DINCH/result/BW.rds')
+saveRDS(df,file='C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DINCH/result/df.rds')
+saveRDS(df.all,file='C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DINCH/result/df.all.rds')
+
+df.all = readRDS(file ='C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DINCH/result/df.all.rds')
+
+quantile(df.all, c(0.01,.05,0.25, 0.5, 0.75,.95,0.99,1))
+
+quantile(df, c(0.01,.05,0.25, 0.5, 0.75,.95,0.99,1))
