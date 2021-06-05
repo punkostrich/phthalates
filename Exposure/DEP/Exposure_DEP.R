@@ -9,10 +9,14 @@ library(EnvStats)
 library(httk)
 library(mc2d)
 library(fitdistrplus)
+library(fpc)
+#install.packages("philentropy")
+library('philentropy')
+library(data.table) #data.table_1.9.5
 
 rm(list = ls())
-M <- 500    #M sets 
-N <- 1000   #N exposure
+M <- 100    #M sets 
+N <- 10000   #N exposure
 
 
 set.seed(123)
@@ -238,12 +242,12 @@ df.dermal$DEP <- c("Dermal")
 #names(df.dermal)=c("Value","DEP")
 
 ## all
-df.all <-as.data.frame(df)
-df.all = as.data.frame(subset(df.all, select = -c(V1) ))
+df.all2 <-as.data.frame(df)
+df.all2 = as.data.frame(subset(df.all2, select = -c(V1) ))
 
-quants <- c(0.50,0.95)
-df.stat = apply( df.all, 2 , quantile , probs = quants ) # get median and 95% quantile
-df.stat <- as.data.frame(df.stat)
+#quants <- c(0.50,0.95)
+#df.stat = apply( df.all, 2 , quantile , probs = quants ) # get median and 95% quantile
+#df.stat <- as.data.frame(df.stat)
 
 # get measured values from literature
 x.median <- c(2)
@@ -251,29 +255,38 @@ x.95 <- c(20)
 survey.median <- quantile(x.median, c(.95))
 survey.95 <- quantile(x.95, c(.95))
 
-# get residues
-df.2.1 <- abs(df.stat[c("50%"),] - survey.median)
-df.2.2 <- abs(df.stat[c("95%"),] - survey.95)
-df.2.3 <- as.data.frame(rbind(df.2.1, df.2.2))
+SD_survey <- (survey.95 - survey.median) / qnorm(0.95)
+survey <- rlnormTrunc(n=N, meanlog = survey.median, sdlog =  SD_survey, min = 1e-10, max = 5000)
 
-# order by residues, for quality check
-y = df.2.3[,order(df.2.3[nrow(df.2.3),])]
+#lst.ks <- lapply(1:ncol(df.all2), function(i)
+  #ks.test(df.all[, i], survey )$statistic)
+ # round(bhattacharyya.dist(log(df.all2[, i]), log(survey) ,diag(N),diag(N)),digits=2))
+#lst.ks <- as.data.frame(lst.ks)
+
+lst.ks <- lapply(1:ncol(df.all2), function(i)
+  #ks.test(df.all[, i], survey )$statistic)
+  JSD(rbind(df.all2[, i], survey), unit = 'log2'))
+lst.ks <- as.data.frame(lst.ks)
+
+
+# get residues
+df.2.3 <- as.data.frame(lst.ks)
+
+# order by residues, for quality check only
+y = df.2.3[,order(df.2.3[nrow(df.2.3),], decreasing = FALSE)]
+y
 
 df.2.3$DEP <- c("quantile")
-df.all$DEP <- c("all") 
+df.all2$DEP <- c("all") 
 
-library(data.table) #data.table_1.9.5
-df.2 <- rbindlist(list(df.inhal, df.oral, df.dermal, df.all, df.2.3),use.names=FALSE )
+
+df.2 <- rbindlist(list(df.inhal, df.oral, df.dermal, df.all2, df.2.3),use.names=FALSE)
 df.2R <- as.data.frame(df.2)
 df.2A = as.data.frame(subset(df.2R, select = -c(DEP) ))
 
-df.95 <- df.2A[,order(df.2A[(nrow(df.2A)-1),])]       # order column based on 50% quantile
-# select first 100 columns
-df.95_50c <- df.95[, 1:100]
-
-df.50 <- df.95_50c[,order(df.95_50c[(nrow(df.95_50c)),])] # order column based on 95% quantile
-# select first 50 columns
-df.f <- df.50[, 1:50]
+df.ks <- df.2A[,order(df.2A[(nrow(df.2A)),], decreasing = FALSE)]       # order column based on p value of kstest
+# select first 5 columns
+df.f <- df.ks[, 1]
 df.f2 <- cbind.data.frame(df.f, df.2R$DEP)
 names(df.f2)[length(names(df.f2))]<-"DEP" 
 
@@ -364,7 +377,7 @@ p1=
 
 p1
 
-ggsave("Exposure_updated3.tiff",scale = 1,
+ggsave("Exposure_updated3AaAA.tiff",scale = 1,
        plot = p1,
        path = "C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DEP",
        width = 25, height = 20, units = "cm",dpi=320)
@@ -389,7 +402,7 @@ quantile(df.dermal$Value, c(.05,0.5, .95))
 
 ## Overall ##
 df.all <- df.all$Value
-quantile(df.all$Value, c(0.01,.05,0.25, 0.5, 0.75,.95,0.99,1))
+quantile(df.all, c(0.01,.05,0.25, 0.5, 0.75,.95,0.99,1))
 
 saveRDS(IE,file ='C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DEP/result/IE.rds')
 saveRDS(OE,file='C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DEP/result/OE.rds')
@@ -405,5 +418,4 @@ SE = readRDS(file ='C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DEP/result/SE.
 df = readRDS(file ='C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DEP/result/df.rds')
 df.all = readRDS(file ='C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DEP/result/df.all.rds')
 
-quantile(df.all, c(0.01,.05,0.25, 0.5, 0.75,.95,0.99,1))
-
+quantile(df.all, c(.05, 0.5, .95, 0.99))
