@@ -1,0 +1,792 @@
+## Load libraries
+library(mrgsolve)    # Needed for Loading mrgsolve code into r via mcode from the 'mrgsolve' pckage
+library(magrittr)    # The pipe, %>% , comes from the magrittr package by Stefan Milton Bache
+library(dplyr)       # The pipe, %>% , comes from the magrittr package by Stefan Milton Bache
+library(ggplot2)     # Needed for plot
+#install.packages("FME")
+library(FME)         # Package for MCMC simulation and model fitting
+#install.packages("minpack.lm")
+library(minpack.lm)  # Package for model fitting
+#install.packages("reshape")
+library(reshape)     # Package for melt function to reshape the table
+#install.packages("truncnorm")
+library(truncnorm)   # Package for the truncated normal distribution function 
+#install.packages("EnvStats")
+library(EnvStats)    # Package for Environmental Statistics, Including US EPA Guidance
+#install.packages("invgamma")
+library(invgamma)    # Package for inverse gamma distribution function
+#install.packages("foreach")
+library(foreach)     # Package for parallel computing
+#install.packages("doParalle")
+library(doParallel)  # Package for parallel computing
+#install.packages("bayesplot")
+library(bayesplot)   # Package for MCMC traceplot
+
+## Build mrgsolve-based PK Model
+mod <- mcode ("pk", HumanPK.code)
+
+
+############################################# Model Calibration with levenberg-marquart #############
+
+#Plasma.DEHP <- read.csv(file="~/Dropbox/R/DEHP/2012_Plasma_DEHP.csv")
+Inhalation_dermal_cal_1 <- read.csv(file="C:/Users/Punkostrich/Dropbox/R/DEP/Inhalation_dermal_cal_1.csv")
+names(Inhalation_dermal_cal_1)=c("Time", "AU")
+
+Inhalation_dermal_cal_2 <- read.csv(file="C:/Users/Punkostrich/Dropbox/R/DEP/Inhalation_dermal_cal_2.csv")
+names(Inhalation_dermal_cal_2)=c("Time", "AU")
+
+Inhalation_dermal_cal_3  <- read.csv(file="C:/Users/Punkostrich/Dropbox/R/DEP/Inhalation_dermal_cal_3.csv")
+names(Inhalation_dermal_cal_3)=c("Time", "AU")
+
+Dermal_cal_1  <- read.csv(file="C:/Users/Punkostrich/Dropbox/R/DEP/Dermal_cal_1.csv")
+names(Dermal_cal_1)=c("Time", "AU")
+
+Dermal_cal_2  <- read.csv(file="C:/Users/Punkostrich/Dropbox/R/DEP/Dermal_cal_2.csv")
+names(Dermal_cal_2)=c("Time", "AU")
+
+Dermal_cal_3  <- read.csv(file="C:/Users/Punkostrich/Dropbox/R/DEP/Dermal_cal_3.csv")
+names(Dermal_cal_3)=c("Time", "AU")
+
+
+# prediction function
+Pred <- function(pars, pred=FALSE) {
+  
+  ##' Get out of log domain
+  pars %<>% lapply(exp)
+  names(pars) <- names(pars)
+  
+  
+  ### shared parameter
+  tinterval   = 24
+  TDoses      = 1
+  
+  #1
+  # Exposure scenario #Inhalation_dermal_cal_1
+  DOSE_Inhal_In_der_cal_1      = 248                      # ug dose; 
+  DOSE_der_In_der_cal_1        = 16.5
+  DOSE_In_der_cal_1            = DOSE_Inhal_In_der_cal_1  + DOSE_der_In_der_cal_1 
+  
+  In_der_cal_1    <- ev(ID=1, amt= DOSE_In_der_cal_1, ii=tinterval, addl=TDoses-1, cmt="AC", tinf = 3, replicate = FALSE)
+  ex_In_der_cal_1  <- In_der_cal_1 
+  
+  #2
+  # Exposure scenario #Inhalation_dermal_cal_2
+  DOSE_Inhal_In_der_cal_2      = 330.3                      # ug dose; 
+  DOSE_der_In_der_cal_2        = 16.7
+  DOSE_In_der_cal_2            = DOSE_Inhal_In_der_cal_2  + DOSE_der_In_der_cal_2 
+  
+  In_der_cal_2    <- ev(ID=1, amt= DOSE_In_der_cal_2, ii=tinterval, addl=TDoses-1, cmt="AC", tinf = 3, replicate = FALSE)
+  ex_In_der_cal_2  <- In_der_cal_2 
+  
+  #3
+  # Exposure scenario #Inhalation_dermal_cal_3
+  DOSE_Inhal_In_der_cal_3      = 339.6                      # ug dose; 
+  DOSE_der_In_der_cal_3        = 24.2
+  DOSE_In_der_cal_3            = DOSE_Inhal_In_der_cal_3  + DOSE_der_In_der_cal_3 
+  
+  In_der_cal_3    <- ev(ID=1, amt= DOSE_In_der_cal_3, ii=tinterval, addl=TDoses-1, cmt="AC", tinf = 3, replicate = FALSE)
+  ex_In_der_cal_3  <- In_der_cal_3 
+  
+  #4
+  # Exposure scenario #Dermal_cal_1
+  DOSE_der_cal_1     = 17
+  Der_cal_1    <- ev(ID=1, amt= DOSE_der_cal_1, ii=tinterval, addl=TDoses-1, cmt="AC", tinf = 3, replicate = FALSE)
+  ex_der_cal_1  <- Der_cal_1 
+  
+  #5
+  # Exposure scenario #Dermal_cal_2
+  DOSE_der_cal_2     = 34
+  Der_cal_2    <- ev(ID=1, amt= DOSE_der_cal_2, ii=tinterval, addl=TDoses-1, cmt="AC", tinf = 3, replicate = FALSE)
+  ex_der_cal_2  <- Der_cal_2 
+  
+  #6
+  # Exposure scenario #Dermal_cal_1
+  DOSE_der_cal_3     = 11.5
+  Der_cal_3    <- ev(ID=1, amt= DOSE_der_cal_3, ii=tinterval, addl=TDoses-1, cmt="AC", tinf = 3, replicate = FALSE)
+  ex_der_cal_3  <- Der_cal_3 
+  
+  # set up the exposure time
+  tsamp=tgrid(0,48,0.1)  # 48 hours
+  
+  out.1 <- 
+    
+    mod %>% 
+    param(pars, BW = 73)%>% 
+    Req(Urine) %>%
+    update(atol = 1E-15,maxsteps = 100000000) %>%
+    mrgsim_d(data = ex_In_der_cal_1, tgrid=tsamp)
+  out.1<-cbind.data.frame (Time = out.1$time,
+                           AU   = out.1$Urine)
+  
+  
+  out.2 <-
+    
+    mod %>% 
+    param(pars,BW = 64) %>%  
+    Req(Urine)%>%
+    update(atol = 1E-15,maxsteps = 1000000000) %>%
+    mrgsim_d(data = ex_In_der_cal_2, tgrid=tsamp)
+  out.2<-cbind.data.frame (Time = out.2$time,
+                           AU   = out.2$Urine)
+  
+  
+  out.3 <-
+    
+    mod %>% 
+    param(pars,BW = 68) %>%  
+    Req(Urine)%>%
+    update(atol = 1E-15,maxsteps = 1000000000) %>%
+    mrgsim_d(data = ex_In_der_cal_3, tgrid=tsamp)
+  out.3<-cbind.data.frame (Time = out.3$time,
+                           AU   = out.3$Urine)
+  
+  
+  out.4 <-
+    
+    mod %>% 
+    param(pars,BW = 73) %>%  
+    Req(Urine)%>%
+    update(atol = 1E-15,maxsteps = 1000000000) %>%
+    mrgsim_d(data = ex_der_cal_1, tgrid=tsamp)
+  out.4<-cbind.data.frame (Time = out.4$time,
+                           AU   = out.4$Urine)
+  
+  
+  out.5 <-
+    
+    mod %>% 
+    param(pars,BW = 73) %>%  
+    Req(Urine)%>%
+    update(atol = 1E-15,maxsteps = 1000000000) %>%
+    mrgsim_d(data = ex_der_cal_2, tgrid=tsamp)
+  out.5<-cbind.data.frame (Time = out.5$time,
+                           AU   = out.5$Urine)
+  
+  
+  out.6 <-
+    
+    mod %>% 
+    param(pars,BW = 82) %>%  
+    Req(Urine)%>%
+    update(atol = 1E-15,maxsteps = 1000000000) %>%
+    mrgsim_d(data = ex_der_cal_3, tgrid=tsamp)
+  out.6<-cbind.data.frame (Time = out.6$time,
+                           AU   = out.6$Urine)
+  
+  return(list("out.1" = out.1,
+              "out.2" = out.2,
+              "out.3" = out.3,
+              "out.4" = out.4,
+              "out.5" = out.5,
+              "out.6" = out.6))
+  
+}
+
+## Cost fuction (from FME pckage) 
+## Estimate the model residual by modCost function
+MCcost<-function (pars){
+  out <-  Pred (pars)
+  cost<- modCost(model=out$out.1, obs= Inhalation_dermal_cal_1, weight='std', x="Time")
+  cost<- modCost(model=out$out.2, obs= Inhalation_dermal_cal_2, weight='std', x="Time", cost = cost)
+  cost<- modCost(model=out$out.3, obs= Inhalation_dermal_cal_3, weight='std', x="Time", cost = cost)
+  cost<- modCost(model=out$out.4, obs= Dermal_cal_1, weight='std', x="Time", cost = cost)
+  cost<- modCost(model=out$out.5, obs= Dermal_cal_2, weight='std', x="Time", cost = cost)
+  cost<- modCost(model=out$out.6, obs= Dermal_cal_3, weight='std', x="Time", cost = cost)
+  return(cost)
+}
+
+
+
+###################### Local sensitivity analysis #########################
+## Choose the senstiive parameters in the model                          ##
+## initial parmaeters######################################################
+
+theta.int <- log(c(
+  Vp                  =   17,    # Volume of distribution parent compound 
+  Vm                  =   0.375,    #: Volume of distribution metabolite compound 
+  
+  #ka                  =   1.6,     #: stomach absorption rate parent 1/h
+  #ks   		            =   5,     #: skin Absorption rate to plasma (1/h)
+  
+  #F                   =   1,       #: transfer ratio from parent to metabolite 
+  
+  lambda_p            =   0.7,     #: lambda for parent 
+  lambda_zm           =   0.74,    #: lambda for metabolite 
+  lambda_u            =   0.6   #: lambda for metabolite urine 
+  
+  #MW                 =   391,     #: g/mol, DEHP molecular mass 
+  #Free                =   0.0001,  #: Free fraction of DEHP in plasma 
+  #FreeM               =   0.007   #: Free fraction of MEHP in plasma 
+  
+  #Kvoid               =   0.06974  #: (L/hr), Daily urine volume rate (L/hr)
+  
+))
+
+# Senstivity function (FME)
+# Check the senstive parameters in the modelhttp://ec2-3-135-223-180.us-east-2.compute.amazonaws.com/graphics/plot_zoom_png?width=1200&height=868
+SnsPlasma <- sensFun(func = MCcost, parms = theta.int, varscale = 1)
+Sen=summary(SnsPlasma)
+write.csv(Sen,file="C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DEP/result/Sen.human.csv")
+
+plot(summary(SnsPlasma))
+
+
+
+
+
+######################### MCMC optimization ##########################
+## set up senstivie or necessary parametesr as model input          ##
+######################################################################
+theta <- log(c(
+  #Vp                  =   17,    # Volume of distribution parent compound 
+  #Vm                  =   0.375,    #: Volume of distribution metabolite compound 
+  
+  #ka                  =   1.6,     #: stomach absorption rate parent 1/h
+  #ks   		            =   5,     #: skin Absorption rate to plasma (1/h)
+  
+  #F                   =   1,       #: transfer ratio from parent to metabolite 
+  
+  lambda_p            =   0.7,     #: lambda for parent 
+  lambda_zm           =   0.74,    #: lambda for metabolite 
+  lambda_u            =   0.6   #: lambda for metabolite urine 
+  
+  
+  #MW                 =   391,     #: g/mol, DEHP molecular mass 
+  #Free                =   0.0001,  #: Free fraction of DEHP in plasma 
+  #FreeM               =   0.007,   #: Free fraction of MEHP in plasma 
+  
+  #Kvoid               =   0.06974  #: (L/hr), Daily urine volume rate (L/hr)
+  
+))
+
+# Model fitting
+#upper = c(Inf,Inf,Inf,Inf,1,Inf,Inf,Inf,Inf,Inf,Inf,Inf),
+system.time(Fit<- modFit(f=MCcost, p=theta, method = "Nelder-Mead",lower = c(-3,-3,-2),
+                         upper = c(Inf,Inf,Inf),
+                         control = nls.lm.control(nprint=1)))
+
+summary(Fit)
+### para value
+exp(Fit$par)
+
+res=MCcost(Fit$par)$residuals$res
+sum(res^2)
+
+
+## Model calibration plot using ggplot2 
+Sim.fit.A = Pred (Fit$par)$out.1         ## Time-course concentration profiles using estimated parameters under exposure senaior 1
+Sim.fit.B = Pred (Fit$par)$out.2         ## Simulaiton of exposure scenaior 2
+Sim.fit.C = Pred (Fit$par)$out.3         ## Simulaiton of exposure scenaior 3
+Sim.fit.D = Pred (Fit$par)$out.4         ## Simulaiton of exposure scenaior 4
+Sim.fit.E = Pred (Fit$par)$out.5         ## Simulaiton of exposure scenaior 5
+Sim.fit.F = Pred (Fit$par)$out.6         ## Simulaiton of exposure scenaior 6
+
+df.sim.A  = cbind.data.frame (Time=Sim.fit.A$Time, AU=Sim.fit.A$AU)
+df.sim.B  = cbind.data.frame (Time=Sim.fit.B$Time, AU=Sim.fit.B$AU)
+df.sim.C  = cbind.data.frame (Time=Sim.fit.C$Time, AU=Sim.fit.C$AU)
+df.sim.D  = cbind.data.frame (Time=Sim.fit.D$Time, AU=Sim.fit.D$AU)
+df.sim.E  = cbind.data.frame (Time=Sim.fit.E$Time, AU=Sim.fit.E$AU)
+df.sim.F  = cbind.data.frame (Time=Sim.fit.F$Time, AU=Sim.fit.F$AU)
+
+
+## Plot
+plot.A1=
+  ggplot() +
+  geom_line (data = df.sim.A,aes(Time,AU), col="firebrick", lwd=2)+
+  geom_point(data = Inhalation_dermal_cal_1, aes(Time, AU),size=2.5) + ylab("Concentration") 
+
+
+plot.A2=
+  ggplot() +
+  geom_line (data = df.sim.B,aes(Time,AU), col="firebrick", lwd=2)+
+  geom_point(data = Inhalation_dermal_cal_2, aes(Time, AU)) + ylab("Concentration") 
+
+
+plot.A3=
+  ggplot() +
+  geom_line (data = df.sim.C,aes(Time,AU), col="firebrick", lwd=2)+
+  geom_point(data = Inhalation_dermal_cal_3 ,aes(Time, AU),size=2.5) + ylab("Concentration") 
+
+
+plot.A4=
+  ggplot() +
+  geom_line (data = df.sim.D,aes(Time,AU), col="firebrick", lwd=2)+
+  geom_point(data = Dermal_cal_1,aes(Time, AU),size=2.5) + ylab("Concentration") 
+
+
+plot.A5=
+  ggplot() +
+  geom_line (data = df.sim.E,aes(Time,AU), col="firebrick", lwd=2)+
+  geom_point(data = Dermal_cal_2,aes(Time, AU),size=2.5) + ylab("Concentration") 
+
+
+plot.A6=
+  ggplot() +
+  geom_line (data = df.sim.F,aes(Time,AU), col="firebrick", lwd=2)+
+  geom_point(data = Dermal_cal_3,aes(Time, AU),size=2.5) + ylab("Concentration") 
+
+
+plot.A7=
+  ggplot() +
+  geom_line (data = df.sim.A,aes(Time,AU), col="firebrick", lwd=2)+
+  geom_point(data = Inhalation_dermal_cal_1, aes(Time, AU),col="firebrick",size=2.5) + ylab("Concentration") +
+  geom_line (data = df.sim.B,aes(Time,AU), col="blue", lwd=2)+
+  geom_point(data = Inhalation_dermal_cal_2, aes(Time, AU), col="blue",) + 
+  geom_line (data = df.sim.C,aes(Time,AU), col="green", lwd=2)+
+  geom_point(data = Inhalation_dermal_cal_3 ,aes(Time, AU),col="green",size=2.5) +
+  geom_line (data = df.sim.D,aes(Time,AU), col="yellow", lwd=2)+
+  geom_point(data = Dermal_cal_1,aes(Time, AU),size=2.5,col="yellow") +
+  geom_line (data = df.sim.E,aes(Time,AU), col="red", lwd=2)+
+  geom_point(data = Dermal_cal_2,aes(Time, AU),size=2.5,col="red") +
+  geom_line (data = df.sim.F,aes(Time,AU), col="tan1", lwd=2)+
+  geom_point(data = Dermal_cal_3,aes(Time, AU),size=2.5,col="tan1") 
+
+plot.A1
+plot.A2
+plot.A3
+plot.A4
+plot.A5
+plot.A6
+plot.A7
+
+
+############################################# Model Calibration with MCMC ###################################################
+## EIGHT data sets was used in model evaluation                                                                               #                                                       #
+#############################################################################################################################
+
+# input callibrated data set;
+#Human.2 <- read.csv(file="~/Dropbox/R/DEHP/2004_Plasma.csv")
+Inhalation_dermal_opt_1 <- read.csv(file="C:/Users/Punkostrich/Dropbox/R/DEP/Inhalation_dermal_opt_1.csv")
+names(Inhalation_dermal_opt_1)=c("Time", "AU")
+
+Inhalation_dermal_opt_2 <- read.csv(file="C:/Users/Punkostrich/Dropbox/R/DEP/Inhalation_dermal_opt_2.csv")
+names(Inhalation_dermal_opt_2)=c("Time", "AU")
+
+Inhalation_dermal_opt_3 <- read.csv(file="C:/Users/Punkostrich/Dropbox/R/DEP/Inhalation_dermal_opt_3.csv")
+names(Inhalation_dermal_opt_3)=c("Time", "AU")
+
+Dermal_opt_1 <- read.csv(file="C:/Users/Punkostrich/Dropbox/R/DEP/Dermal_opt_1.csv")
+names(Dermal_opt_1)=c("Time", "AU")
+
+Dermal_opt_2 <- read.csv(file="C:/Users/Punkostrich/Dropbox/R/DEP/Dermal_opt_2.csv")
+names(Dermal_opt_2)=c("Time", "AU")
+
+Dermal_opt_3 <- read.csv(file="C:/Users/Punkostrich/Dropbox/R/DEP/Dermal_opt_3.csv")
+names(Dermal_opt_3)=c("Time", "AU")
+
+Dermal_opt_4 <- read.csv(file="C:/Users/Punkostrich/Dropbox/R/DEP/Dermal_opt_4.csv")
+names(Dermal_opt_4)=c("Time", "AU")
+
+Dermal_opt_5 <- read.csv(file="C:/Users/Punkostrich/Dropbox/R/DEP/Dermal_opt_5.csv")
+names(Dermal_opt_5)=c("Time", "AU")
+
+
+
+## Fixed the physiological parameters;
+## Input a new initial parameters
+## Population mean and model error (sig2)
+
+theta.MCMC <- log(c(
+  Vp                  =   5.44537489,    # Volume of distribution parent compound 
+  Vm                  =   0.19722783,    #: Volume of distribution metabolite compound 
+  
+  ka                  =   2.71825288,     #: stomach absorption rate parent 1/h
+ 
+  lambda_p            =   0.3024848,     #: lambda for parent 
+  lambda_zm           =   2.6551913,    #: lambda for metabolite 
+  lambda_u            =   1.6783213,   #: lambda for metabolite urine 
+  
+  
+  sig2                =   1,      ## Model residuals; mostly between 0.3 and 0.5 (corresponding to coefficients of variation of about 30-50%); Bois et al. (1998, 2000)
+  
+  ## population variance; equal to the CV of parameters (this study assued the cv of most parametesr is 0.3, some parameters is 0.5 due to possible variation)
+  sig_Vp                = 1,                ## Default value of 0.3 and 0.5 was used to represent a moderate level of variation (Hack et al., 2006; Chiu et al., 2009)
+  sig_Vm                = 1,
+  sig_ka                = 1,
+  
+  sig_lambda_p          = 1,
+  sig_lambda_zm         = 1,
+  sig_lambda_u          = 1
+  
+))
+
+
+which_sig <- grep("sig", names(theta.MCMC))
+
+## Maximum likelihood estimation (MLE) fuction for MCMC
+mcmc.fun <- function (pars, pred=FALSE){
+  
+  ## Get out of log domain
+  pars.data <- lapply(pars [-which_sig],exp)
+  names(pars.data) <- names(pars.data)
+  
+  
+  ##### common parameter
+  tinterval             = 24                            ## hr, Time interval
+  TDoses                = 1                             ## Dose times
+  
+  # Exposure scenario for single low dose
+  #1
+  # Exposure scenario #Inhalation_dermal_opt_1
+  DOSE_Inhal_In_der_opt_1      = 203.7                      # ug dose; 
+  DOSE_der_In_der_opt_1        = 16.5
+  DOSE_In_der_opt_1            = DOSE_Inhal_In_der_opt_1  + DOSE_der_In_der_opt_1 
+  
+  In_der_opt_1    <- ev(ID=1, amt= DOSE_In_der_opt_1, ii=tinterval, addl=TDoses-1, cmt="AC", tinf = 3, replicate = FALSE)
+  ex_In_der_opt_1  <- In_der_opt_1 
+  
+  #2
+  # Exposure scenario #Inhalation_dermal_opt_2
+  DOSE_Inhal_In_der_opt_2      = 207                      # ug dose; 
+  DOSE_der_In_der_opt_2        = 33
+  DOSE_In_der_opt_2            = DOSE_Inhal_In_der_opt_2  + DOSE_der_In_der_opt_2 
+  
+  In_der_opt_2    <- ev(ID=1, amt= DOSE_In_der_opt_2, ii=tinterval, addl=TDoses-1, cmt="AC", tinf = 3, replicate = FALSE)
+  ex_In_der_opt_2  <- In_der_opt_2 
+  
+  #3
+  # Exposure scenario #Inhalation_dermal_opt_3
+  DOSE_Inhal_In_der_opt_3      = 346.1                      # ug dose; 
+  DOSE_der_In_der_opt_3        = 18.1
+  DOSE_In_der_opt_3            = DOSE_Inhal_In_der_opt_3  + DOSE_der_In_der_opt_3
+  
+  In_der_opt_3    <- ev(ID=1, amt= DOSE_In_der_opt_3, ii=tinterval, addl=TDoses-1, cmt="AC", tinf = 3, replicate = FALSE)
+  ex_In_der_opt_3  <- In_der_opt_3 
+  
+  #4
+  # Exposure scenario #Dermal_opt_1
+  DOSE_der_opt_1     = 17
+  Der_opt_1    <- ev(ID=1, amt= DOSE_der_opt_1, ii=tinterval, addl=TDoses-1, cmt="AC", tinf = 3, replicate = FALSE)
+  ex_der_opt_1  <- Der_opt_1 
+  
+  #5
+  # Exposure scenario #Dermal_opt_2
+  DOSE_der_opt_2     = 15.1
+  Der_opt_2    <- ev(ID=1, amt= DOSE_der_opt_2, ii=tinterval, addl=TDoses-1, cmt="AC", tinf = 3, replicate = FALSE)
+  ex_der_opt_2  <- Der_opt_2 
+  
+  #6
+  # Exposure scenario #Dermal_opt_3
+  DOSE_der_opt_3     = 32
+  Der_opt_3    <- ev(ID=1, amt= DOSE_der_opt_3, ii=tinterval, addl=TDoses-1, cmt="AC", tinf = 3, replicate = FALSE)
+  ex_der_opt_3  <- Der_opt_3 
+  
+  #7
+  # Exposure scenario #Dermal_opt_4
+  DOSE_der_opt_4     = 17.2
+  Der_opt_4    <- ev(ID=1, amt= DOSE_der_opt_4, ii=tinterval, addl=TDoses-1, cmt="AC", tinf = 3, replicate = FALSE)
+  ex_der_opt_4  <- Der_opt_4 
+  
+  
+  #8
+  # Exposure scenario #Dermal_opt_5
+  DOSE_der_opt_5     = 30.2
+  Der_opt_5    <- ev(ID=1, amt= DOSE_der_opt_5, ii=tinterval, addl=TDoses-1, cmt="AC", tinf = 3, replicate = FALSE)
+  ex_der_opt_5  <- Der_opt_5 
+  
+  ############
+ 
+  
+  # set up the simulation exposure time
+  tsamp.B=tgrid(0,48,0.1)  # 48 hours
+  
+  ########### inhal+dermal 
+  out.a <- 
+    mod %>% 
+    param(pars.data, BW = 60) %>%
+    Req(Urine)%>%
+    update(atol = 1E-8,maxsteps = 1000000) %>%
+    mrgsim_d(data = ex_In_der_opt_1, tgrid=tsamp.B)
+  
+  out.a <- cbind.data.frame (Time =out.a$time,
+                             AU   =out.a$Urine)
+  
+  
+  out.b <- 
+    mod %>% 
+    param(pars.data, BW = 61) %>%
+    Req(Urine)%>%
+    update(atol = 1E-8,maxsteps = 1000000) %>%
+    mrgsim_d(data = ex_In_der_opt_2, tgrid=tsamp.B)
+  
+  out.b <- cbind.data.frame (Time =out.b$time,
+                             AU   =out.b$Urine)
+  
+  
+  out.c <- 
+    mod %>% 
+    param(pars.data, BW = 93) %>%
+    Req(Urine)%>%
+    update(atol = 1E-8,maxsteps = 1000000) %>%
+    mrgsim_d(data = ex_In_der_opt_3, tgrid=tsamp.B)
+  
+  out.c <- cbind.data.frame (Time =out.c$time,
+                             AU   =out.c$Urine)
+  
+  
+  ############ dermal 
+  out.aa <- 
+    mod %>% 
+    param(pars.data, BW = 60) %>%
+    Req(Urine)%>%
+    update(atol = 1E-8,maxsteps = 1000000) %>%
+    mrgsim_d(data = ex_der_opt_1, tgrid=tsamp.B)
+  out.aa <- cbind.data.frame (Time =out.aa$time,
+                               AU   =out.aa$Urine)
+  
+  out.bb <- 
+    mod %>% 
+    param(pars.data, BW = 80) %>%
+    Req(Urine)%>%
+    update(atol = 1E-8,maxsteps = 1000000) %>%
+    mrgsim_d(data = ex_der_opt_2, tgrid=tsamp.B)
+  out.bb <- cbind.data.frame (Time =out.bb$time,
+                               AU   =out.bb$Urine)
+  
+  out.cc <- 
+    mod %>% 
+    param(pars.data, BW = 68) %>%
+    Req(Urine)%>%
+    update(atol = 1E-8,maxsteps = 1000000) %>%
+    mrgsim_d(data = ex_der_opt_3, tgrid=tsamp.B)
+  out.cc <- cbind.data.frame (Time =out.cc$time,
+                               AU   =out.cc$Urine)
+  
+  out.dd <- 
+    mod %>% 
+    param(pars.data, BW = 78) %>%
+    Req(Urine)%>%
+    update(atol = 1E-8,maxsteps = 1000000) %>%
+    mrgsim_d(data = ex_der_opt_4, tgrid=tsamp.B)
+  out.dd <- cbind.data.frame (Time =out.dd$time,
+                               AU   =out.dd$Urine)
+  
+  out.ee <- 
+    mod %>% 
+    param(pars.data, BW = 74) %>%
+    Req(Urine)%>%
+    update(atol = 1E-8,maxsteps = 1000000) %>%
+    mrgsim_d(data = ex_der_opt_5, tgrid=tsamp.B)
+  out.ee <- cbind.data.frame (Time =out.ee$time,
+                               AU   =out.ee$Urine)
+  
+  
+
+  
+  if (pred) return (list("out.a" = out.a,     ## Exposure scenario a
+                         "out.b" = out.b,     ## Exposure scenario b 
+                         "out.c" = out.c,     ## Exposure scenario c 
+                         "out.aa" = out.aa,     ## Exposure scenario aa 
+                         "out.bb" = out.bb,     ## Exposure scenario bb 
+                         "out.cc" = out.cc,     ## Exposure scenario cc 
+                         "out.dd" = out.dd,     ## Exposure scenario dd 
+                         "out.ee" = out.ee))     ## Exposure scenario ee 
+  
+  ## Data mutate with prediction
+  out.a  = out.a  [which(out.a$Time  %in% Inhalation_dermal_opt_1$Time),]
+  out.b  = out.b  [which(out.b$Time  %in% Inhalation_dermal_opt_2$Time),]
+  out.c  = out.c  [which(out.c$Time  %in% Inhalation_dermal_opt_3$Time),]
+  out.aa = out.aa [which(out.aa$Time %in% Dermal_opt_1$Time),]
+  out.bb = out.bb [which(out.bb$Time %in% Dermal_opt_2$Time),]
+  out.cc = out.cc [which(out.cc$Time %in% Dermal_opt_3$Time),]
+  out.dd = out.dd [which(out.dd$Time %in% Dermal_opt_4$Time),]
+  out.ee = out.ee [which(out.ee$Time %in% Dermal_opt_5$Time),]
+  
+  ## log.Predition 
+  log.yhat.a      <-log(out.a$AU)
+  log.yhat.b      <-log(out.b$AU)
+  log.yhat.c      <-log(out.c$AU)
+  log.yhat.aa      <-log(out.aa$AU)
+  log.yhat.bb      <-log(out.bb$AU)
+  log.yhat.cc      <-log(out.cc$AU)
+  log.yhat.dd      <-log(out.dd$AU)
+  log.yhat.ee      <-log(out.ee$AU)
+  
+  ## log.Observed data
+  log.y.a         <-log(Inhalation_dermal_opt_1$AU)
+  log.y.b         <-log(Inhalation_dermal_opt_2$AU)
+  log.y.c         <-log(Inhalation_dermal_opt_3$AU)
+  log.y.aa         <-log(Dermal_opt_1$AU)
+  log.y.bb         <-log(Dermal_opt_2$AU)
+  log.y.cc         <-log(Dermal_opt_3$AU)
+  log.y.dd         <-log(Dermal_opt_4$AU)
+  log.y.ee         <-log(Dermal_opt_5$AU)
+  
+  
+  log.yhat        <- c(log.yhat.a,log.yhat.b,log.yhat.c,log.yhat.aa,log.yhat.bb,log.yhat.cc,log.yhat.dd,log.yhat.ee)
+  log.y           <- c(log.y.a,log.y.b,log.y.c,log.y.aa,log.y.bb,log.y.cc,log.y.dd,log.y.ee)
+  
+  # The method of Maximum likelihood
+  sig2            <- as.numeric((exp(pars[which_sig][1])))
+  log_likelihood  <- -2*sum ((dnorm (log.y,
+                                     mean =log.yhat,
+                                     sd = sqrt(sig2),
+                                     log = TRUE)))
+  return(log_likelihood)
+  
+}
+
+## Define the Prior distributions: either normal or lognormal distribution
+## nomral distribution
+Prior <- function(pars) {
+  
+  ## Population level
+  # The likelihood for population mean (parameters)
+  pars.data = exp(pars[-which_sig])
+  sig  <- as.numeric (exp(pars[which_sig][2:7]))                 # Coefficient of variation from population variance; sigmal0
+  sig2 <- as.numeric (exp(pars[which_sig][1]))                    # error variances from model esidual
+  
+  mean           = exp(theta.MCMC[-which_sig])
+  CV             = 1                                            # Coefficient of variation; Default value of 0.5 in all parameters (Bois,2000; Bois et al., 1996)
+  sd             = mean*CV
+  
+  # Calculate likelihoods of each parameters; P(u|M,S)
+  prior_pars     = dtruncnorm(pars.data, 
+                              a = qnorm(0.025, mean = mean, sd = sd), 
+                              b = qnorm(0.975, mean = mean, sd = sd), 
+                              mean = mean, sd = sd ) 
+  
+  # The likelihood for population variance; P(sigmal^2|sigmal0^2)
+  CU             = 1                                              # Coefficient of uncertainty (CU) (Hack et al., 2006)
+  CV.sig         = exp(theta.MCMC[which_sig])[2:7]               # Singmal0
+  alpha          = (2+1)/(CU^2)                                   # Shape parametrer of gamma distribution; Appendix Table A-7 from EPA (2011) :EPA/635/R-09/011F
+  beta           = (alpha-1)*CV.sig^2                             # Scale parameter  of gamma distribution; Appendix Table A-7 from EPA (2011) :EPA/635/R-09/011F
+  
+  # Calculate likelihoods of model error (sig2) and population variance (sig) parameters
+  prior_sig      = dinvgamma (sig, shape = alpha , scale = beta)  # Prior distribution for population vraicne; sigma2
+  prior_sig2     = dunif (sig2, min = 0.01, max = 3.3)            # Error variances, Lower and upper boundary from Chiu et al., 2009; Chiu et al., 2014)   
+  
+  ## individual level; P(theta|u,sigmal^2)
+  mean_i         = prior_pars
+  sd_i           = sqrt(prior_sig)
+  prior_pars_i   = dtruncnorm (prior_pars, 
+                               a = qnorm(0.025, mean = mean_i, sd = sd_i), 
+                               b = qnorm(0.975, mean = mean_i, sd = sd_i), 
+                               mean = mean_i, sd = sd_i) 
+  
+  # log-transformed (log-likelihoods of each parameters)
+  log.pri.pars   = log (prior_pars)
+  log.pri.sig    = log (prior_sig)
+  log.pri.pars.i = log (prior_pars_i)
+  log.pri.sig2   = log (prior_sig2)
+  
+  # Maximau likelihood estimation (MLE): negative log-likelihood function, (-2 times sum of log-likelihoods)
+  MLE =  -2*sum(log.pri.pars, log.pri.sig , log.pri.pars.i,log.pri.sig2)  
+  
+  return(MLE)
+}
+
+
+
+#################### MCMC simulation with parallel computing ############################
+
+
+#install.packages(c('doMC', 'foreach')) 
+library(foreach) 
+library(doMC)
+#install.packages("doSNOW")
+#install.packages("doParallel") 
+library("doParallel")
+#install.packages("doMPI")
+library(parallel)
+#install.packages("drake") 
+library(drake)
+mrgsolve::loadso
+loadso(mod)
+
+detectCores()                                ## check the cores
+cl<- makeCluster(detectCores())              ## use all cores in our system     
+registerDoParallel(cl)                       ## registers a cluster of all the cores on our system
+
+# start time
+strt<-Sys.time()
+
+# parallel
+system.time(
+  MCMC <- foreach( i = 1:4, .packages = c('mrgsolve','magrittr','FME','truncnorm','EnvStats','invgamma','dplyr')) %dopar% {
+    mod <- mcode ("pk", HumanPK.code)
+    loadso(mod)
+    modMCMC(f             = mcmc.fun, 
+            p             = theta.MCMC, 
+            niter         = 100000,           ## iteration number 
+            jump          = 0.01,             ## jump function generation new parameters distribution using covariate matrix
+            lower = c(-1,-3,-3,-3,-3,-3,-Inf,-Inf,-Inf,-Inf,-Inf,-Inf,-Inf),
+            upper = c(+2,+1,+2,+3,+3,+3,+Inf,+Inf,+Inf,+Inf,+Inf,+Inf,+Inf),
+            prior         = Prior,            ## prior function
+            updatecov     = 50,               ## Adaptative Metropolis
+            var0          = NULL,             ## initial model variance;
+            wvar0         = 0.01,             ## "Weight" for the initial model variance
+            ntrydr        = 2,                ## Delayed Rejection
+            burninlength  = 50000,           ## number of initial iterations to be removed from output.
+            outputlength  = 5000)            ## number of output iterations           
+    
+  }
+)
+
+#end time
+print(Sys.time()-strt)
+
+stopCluster(cl)   
+
+
+## Performance four chains to check the convergences
+MC.H.1 = as.mcmc (MCMC[[1]]$pars)     # first  chain
+MC.H.2 = as.mcmc (MCMC[[2]]$pars)     # second chain
+MC.H.3 = as.mcmc (MCMC[[3]]$pars)     # third  chain
+MC.H.4 = as.mcmc (MCMC[[4]]$pars)     # fourth chain
+combinedchains = mcmc.list(MC.H.1,MC.H.2,MC.H.3,MC.H.4) ## combine all chains
+gelman.diag (combinedchains)          # Gelman convergence diagnosis
+heidel.diag (combinedchains)          # covergence diagnosis/Heidelberger and Welch's convergence diagnostic
+gelman.plot (combinedchains)          # gelman plot
+
+# Save the poseior parameters (95% CI)
+quan.Human = exp(summary(MC.H.1)$quantiles)  
+
+
+# Trace plot using bayesplot
+## Covergences plot
+#color_scheme_set("gray")
+mcmc_trace (
+  combinedchains,
+  pars =names(theta.MCMC),
+  size = 0.5,
+  facet_args = list(nrow = 2)) +
+  ggplot2::scale_color_brewer()
+
+
+## output the MCMC results
+write.csv(quan.Human,file="C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DEP/result/Human.summary_pos.csv")
+write.csv(MC.H.1,file="C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DEP/result/Human.pos.csv")
+saveRDS(MCMC[[1]],file ='C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DEP/result/Human.MCMC.rds')
+saveRDS(combinedchains,file='C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/DEP/result/Human.comb.rds')
+
+
+## Plot using MCMC parameters
+
+MCMC.B = mcmc.fun (par = MCMC[[1]]$bestpar, pred=TRUE)$out.B
+MCMC.C = mcmc.fun (par = MCMC[[1]]$bestpar, pred=TRUE)$out.C
+df.B=cbind.data.frame (Time  = MCMC.B$Time, 
+                       CA2    = MCMC.B$CA2)
+df.C=cbind.data.frame (Time  = MCMC.C$Time, 
+                       AU3    = MCMC.C$AU3)
+
+Plot_MCMC =
+  ggplot() +
+  geom_line(data  = df.B,aes(Time,CA2), col="firebrick", lwd=2)+
+  geom_line(data  = df.C,aes(Time,AU3), col="green", lwd=2) +
+  geom_point(data = Human.2,aes(Time,CA2),col="firebrick",size=2) + ylab("Conc") +
+  geom_point(data = Human.3,aes(Time,AU3),col="green",size=2) 
+Plot_MCMC 
+
+
+plot.B1=
+  ggplot() +
+  geom_line(data  = df.B,aes(Time,CA2), col="firebrick", lwd=2)+
+  geom_point(data = Human.2,aes(Time,CA2),col="firebrick",size=2) + ylab("Conc")
+
+plot.B1
+
+ggsave("Plot_MCMC.tiff",scale = 1,
+       plot = Plot_MCMC ,
+       path = "C:/Users/Punkostrich/Dropbox/NM/Class/DEP/PK/DEHP/",
+       width = 25, height = 20, units = "cm",dpi=320)
