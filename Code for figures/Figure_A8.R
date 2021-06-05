@@ -1,4 +1,3 @@
-
 ## loading R packages
 library(magrittr)   # The pipe, %>% , comes from the magrittr package by Stefan Milton Bache
 library(dplyr)      # Needed for the pipe %>% operator
@@ -60,7 +59,8 @@ Pred.DEP <- function (product.pars.DEP){
   which_sig.DEP          <- grep("sig", DEP.names)
  
   ## Get out of log domain
-  pars.DEP    <- lapply(pars.DEP  [-which_sig.DEP],exp) 
+  pars.DEP    <- lapply(pars.DEP  [-which_sig.DEP],exp) # pars.mouse is the entire parameter set; pars.mouse [-which_sig] means to keep parameters with "sig" only, and then do exp transformation, then reassign to pars.mouse
+
   ## Repeat dose exposure scenario: 
    
   BW                = 82.3                                ## human body weight
@@ -109,7 +109,8 @@ Pred.DEHP <- function (product.pars.DEHP){
   which_sig.DEHP          <- grep("sig", DEHP.names)
 
   ## Get out of log domain
-  pars.DEHP    <- lapply(pars.DEHP  [-which_sig.DEHP],exp) 
+  pars.DEHP    <- lapply(pars.DEHP  [-which_sig.DEHP],exp) # pars.mouse is the entire parameter set; pars.mouse [-which_sig] means to keep parameters with "sig" only, and then do exp transformation, then reassign to pars.mouse
+  
   ## Repeat dose exposure scenario: 
   
   BW                = 82.3                                ## human body weight
@@ -318,12 +319,14 @@ Pred.Product.DEP <- function (pars){
   ##### percentage in plastic
   life = 10     # plastic service life
   dens = 2   #kg/m3
+  dens_DEP <- 1.12 * 1E3 #kg/m3
+  Cpcp_ori <- 0.002
   
   ######## household size ########
   household = 2.65
   
   A   = 1
-  y0  = 19113 * C_pcp/1E6  * 3.7 ## ug/m3
+  y0  = min(19113, 19113 * Cpcp_ori / dens_DEP / (Cpcp_ori/dens_DEP + (1-Cpcp_ori)/1E3) * 3.7)
   
   
   ## convective mass transfer coefficient log-normal
@@ -351,7 +354,7 @@ Pred.Product.DEP <- function (pars){
   
   #dust oral
   IngR  =  50  ## mg/d
-  Kdust =  5.5E-6               ## m3/ug
+  Kdust <- Kp/8.32                ## m3/ug
   OE = (Cair * Kdust * IngR)/BW  
   
   
@@ -384,13 +387,15 @@ Pred.Product.DEHA <- function (pars){
   ##### percentage in plastic
   life = 10     # plastic service life
   dens = 2   #kg/m3
+  dens_DEHA   <- 0.922 * 1E3 #kg/m3
+
   
   ######## household size ########
   household = 2.65
   
   A_p = volume * life / perc / dens / 328 /1000000
   A   = volume * life / perc / dens / 328 /1000000 * household 
-  y0  = 10.4 ## ug/m3
+  y0  = min(10.4,10.4 * perc / dens_DEHA / (perc/dens_DEHA + (1-perc)/1.5E3) * 3.7) 
   
   
   ## convective mass transfer coefficient log-normal
@@ -432,7 +437,7 @@ Pred.Product.DEHA <- function (pars){
   
   #dust oral
   IngR  = 50  ## mg/d
-  Kdust =  2.5E-3               ## m3/ug
+  Kdust <- Kp/8.32  
   OE = (Cair * Kdust * IngR)/BW  + Diet/BW ## ug/day/kg
   
   
@@ -464,13 +469,13 @@ Pred.Product.DEHP <- function (pars){
   #perc = 0.3 
   life = 10     # plastic service life
   dens = 2   #kg/m3
-  
+  dens_DEHP   <- 0.99 * 1E3 #kg/m3
   ######## household size ########
   household = 2.65
   
   A_p = volume * life / perc / dens / 328 /1000000
   A = volume * life / perc / dens / 328 /1000000 * household 
-  y0 = 2.5 ## ug/m3
+  y0  = min(2.5, 2.5 * perc / dens_DEHP / (perc/dens_DEHP + (1-perc)/1.5E3) * 3.7) ## ug/m3,
   
   
   ## convective mass transfer coefficient log-normal
@@ -512,7 +517,7 @@ Pred.Product.DEHP <- function (pars){
   
   #dust oral
   IngR  = 50  ## mg/d
-  Kdust =  7.2e-3                ## m3/ug
+  Kdust <- Kp/8.32  
   OE = (Cair * Kdust * IngR)/BW  + Diet/BW ## ug/day/kg
   
   
@@ -536,6 +541,7 @@ Pred.Product.DINCH <- function (pars){
   volume = pars[1]
   perc   = pars[2]
   Cp_ori = pars[3]
+  dens_DINCH   <- 0.954 * 1E3 #kg/m3
   
   sn = 1000000
   
@@ -548,7 +554,7 @@ Pred.Product.DINCH <- function (pars){
   
   A_p = volume * life / perc / dens / 328 /1000000
   A   = volume * life / perc / dens / 328 /1000000 * household 
-  y0  = 1.6 ## ug/m3
+  y0  = min(1.6, 1.6 * perc / dens_DINCH / (perc/dens_DINCH + (1-perc)/1.5E3) * 3.7) ## ug/m3,
   
   
   ## convective mass transfer coefficient log-normal
@@ -590,7 +596,7 @@ Pred.Product.DINCH <- function (pars){
   
   #dust oral
   IngR  =  50  ## mg/d
-  Kdust =  0.01               ## m3/ug
+  Kdust <- Kp/8.32  
   OE = (Cair * Kdust * IngR)/BW  + Diet/BW ## ug/day/kg
   
   
@@ -619,13 +625,14 @@ Pred.Product.DPHP <- function (pars){
   ##### percentage in plastic
   life = 10     # plastic service life
   dens = 2   #kg/m3
+  dens_DPHP   <- 0.965 * 1E3 #kg/m3
   
   ######## household size ########
   household = 2.65
   
   A_p = volume * life / perc / dens / 328 /1000000
   A   = volume * life / perc / dens / 328 /1000000 * household 
-  y0  = 0.667 ## ug/m3
+  y0  = min(0.667, 0.667 * perc / dens_DPHP / (perc/dens_DPHP + (1-perc)/1.5E3) * 3.7) ## ug/m3,
   
   
   ## convective mass transfer coefficient log-normal
@@ -667,7 +674,7 @@ Pred.Product.DPHP <- function (pars){
   
   #dust oral
   IngR  =  50  ## mg/d
-  Kdust =  0.035               ## m3/ug
+  Kdust <- Kp/8.32  
   OE = (Cair * Kdust * IngR)/BW  + Diet/BW ## ug/day/kg
   
   
@@ -975,7 +982,7 @@ data.CA$value <- as.numeric(as.character(data.CA$value))
 
 data.CA$group <- as.character(data.CA$group)
 data.CA$group <- factor(data.CA$group, levels=c("DEP","DEHA", "DEHP", "DINCH","DPHP"))
-
+data.CA
 #data.CA$par <- as.character(data.CA$par)
 #data.CA$par <- factor(data.CA$par, levels=c("C[fcm]","C[pcp]", "Vol", "PCT"))
 
@@ -1037,7 +1044,7 @@ p1
 
 
 ####### Save plot #######
-ggsave("Sens_product_parent_barAB.tiff",scale = 1,
+ggsave("Sens_product_parent_barABc.tiff",scale = 1,
        plot = p1,
        path = "C:/Users/Punkostrich/Dropbox/NM/Class/DEHP/PK/Code for plot",
        width = 15, height = 10, units = "cm",dpi=320)
