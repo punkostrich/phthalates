@@ -1,6 +1,4 @@
-########################################## Fig. 6 ################################ 
-# circular plot of sensitivity analysis                                           #
-###################################################################################
+
 ## loading R packages
 library(magrittr)   # The pipe, %>% , comes from the magrittr package by Stefan Milton Bache
 library(dplyr)      # Needed for the pipe %>% operator
