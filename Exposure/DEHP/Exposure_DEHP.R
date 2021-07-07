@@ -234,7 +234,7 @@ set.seed(123)
    ############################## 3 ###################################
    ##################### Exposure scenario #Dermal ####################
    ## dermal absorption coefficient # unshared (Us)
-   SD_kpg <- 2.04 * 5  # unshared (Us)
+   SD_kpg <- 4.68 * 5  # unshared (Us)
    kpg <- rtruncnorm (n=N, a = 0.1e-03, 
                       b = qnorm(0.95, mean =2.04, sd = SD_kpg ), 
                       mean = 2.04 , sd = SD_kpg )              ## m/d
