@@ -44,7 +44,7 @@ library(EnvStats)
  quantile(A, c(0.05,.5, 0.75, 0.9, 0.95))       #household emission area
  quantile(A_p, c(0.05,.5, 0.75, 0.9, 0.95)) 
  
- y0  = min(10.4,10.4 * perc / dens_DEHA / (perc/dens_DEHA + (1-perc)/1.5E3) * 3.7) ## ug/m3, 19113 is the vapor pressure of DEP
+ y0  = min(10.4,10.4 * perc / dens_DEHA / (perc/dens_DEHA + (1-perc)/1.5E3) * 3.7) ## ug/m3, vapor pressure 
 
 
  ## convective mass transfer coefficient log-normal
@@ -146,7 +146,7 @@ library(EnvStats)
  #                         b = qnorm(0.95, mean = 2.5E-3, sd = SD_Kdust ), 
  #                         mean = 2.5E-3, sd = SD_Kdust)              ## m3/mg
  
- Kdust <- Kp/8.32            ## m3/ug #(Sc, shared among members of the entire cohort)
+ Kdust <- Kp/8.32            ## m3/ug 
 
 
  OE <- (Cair * Kdust * IngR)/BW  + Diet/BW ## ug/day/kg
@@ -157,7 +157,7 @@ library(EnvStats)
  ############################## 3 ###################################
  ##################### Exposure scenario #Dermal ####################
 
- SD_kpg <- 1.91 * 5
+ SD_kpg <- 1.77 * 5
  kpg <- rtruncnorm (n=10000, a = 0.1e-03, 
                           b = qnorm(0.95, mean = 1.91, sd = SD_kpg ), 
                           mean = 1.91 , sd = SD_kpg )              ## m/d
