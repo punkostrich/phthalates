@@ -33,10 +33,10 @@ theta.Human <- log(c(
   Fr_oxo              =   0.522078175 ,    # : h-1
   
   
-  sig2                =   1,      ## Model residuals; mostly between 0.3 and 0.5 (corresponding to coefficients of variation of about 30-50%); Bois et al. (1998, 2000)
+  sig2                =   1,      
   
-  ## population variance; equal to the CV of parameters (this study assued the cv of most parametesr is 0.3, some parameters is 0.5 due to possible variation)
-  sig_Vp                = 1,                ## Default value of 0.3 and 0.5 was used to represent a moderate level of variation (Hack et al., 2006; Chiu et al., 2009)
+  
+  sig_Vp                = 1,               
   sig_Vm                = 1,
   sig_ka                = 1,
   sig_lambda_p           = 1,
@@ -84,10 +84,10 @@ theta.names <- c(
   Fr_oxo              =   0.522078175 ,    # : h-1
   
   
-  sig2                =   1,      ## Model residuals; mostly between 0.3 and 0.5 (corresponding to coefficients of variation of about 30-50%); Bois et al. (1998, 2000)
+  sig2                =   1,    
   
-  ## population variance; equal to the CV of parameters (this study assued the cv of most parametesr is 0.3, some parameters is 0.5 due to possible variation)
-  sig_Vp                = 1,                ## Default value of 0.3 and 0.5 was used to represent a moderate level of variation (Hack et al., 2006; Chiu et al., 2009)
+  
+  sig_Vp                = 1,             
   sig_Vm                = 1,
   sig_ka                = 1,
   sig_lambda_p           = 1,
@@ -160,10 +160,8 @@ theta.names <- c(
   Fr_oxo              =   0.522078175 ,    # : h-1
   
  
-  sig2                =   1,      ## Model residuals; mostly between 0.3 and 0.5 (corresponding to coefficients of variation of about 30-50%); Bois et al. (1998, 2000)
-  
-  ## population variance; equal to the CV of parameters (this study assued the cv of most parametesr is 0.3, some parameters is 0.5 due to possible variation)
-  sig_Vp                = 1,                ## Default value of 0.3 and 0.5 was used to represent a moderate level of variation (Hack et al., 2006; Chiu et al., 2009)
+  sig2                =   1,     
+  sig_Vp                = 1,               
   sig_Vm                = 1,
   sig_ka                = 1,
   sig_lambda_p           = 1,
