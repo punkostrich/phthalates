@@ -522,8 +522,8 @@ theta.MCMC <- log(c(
   V_oxo               =   0.86278857,    #= Volume of distribution metabolite compound 
   
   sig2                =   1, 
-  ## population variance; equal to the CV of parameters (this study assued the cv of most parametesr is 0.3, some parameters is 0.5 due to possible variation)
-  sig_Vp                 = 1,                ## Default value of 0.3 and 0.5 was used to represent a moderate level of variation (Hack et al., 2006; Chiu et al., 2009)
+  
+  sig_Vp                 = 1,               
   sig_Vm                 = 1,
   sig_ka                 = 1,
   
